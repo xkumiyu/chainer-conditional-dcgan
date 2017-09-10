@@ -6,7 +6,7 @@ from chainer.training import extensions
 
 from net import Discriminator
 from net import Generator
-from updater import DCGANUpdater
+from updater import GANUpdater
 from visualize import out_generated_image
 
 
@@ -68,7 +68,7 @@ def main():
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
 
     # Set up a trainer
-    updater = DCGANUpdater(
+    updater = GANUpdater(
         models=(gen, dis),
         iterator=train_iter,
         optimizer={
