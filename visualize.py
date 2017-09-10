@@ -14,6 +14,7 @@ def _make_labels(n_images, class_num):
         labels = np.append(labels, np.arange(0, class_num, dtype=np.int32))
     return labels[:n_images]
 
+
 def out_generated_image(gen, dis, rows, cols, seed, dst):
     @chainer.training.make_extension()
     def make_image(trainer):

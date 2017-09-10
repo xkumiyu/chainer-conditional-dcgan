@@ -1,5 +1,4 @@
 import argparse
-import os
 
 import chainer
 from chainer import training
