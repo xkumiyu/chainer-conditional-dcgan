@@ -1,4 +1,8 @@
+import os
 import argparse
+
+import matplotlib
+matplotlib.use('Agg')
 
 import chainer
 from chainer import training
@@ -89,6 +93,8 @@ def main():
     trainer.extend(extensions.PrintReport([
         'epoch', 'iteration', 'gen/loss', 'dis/loss',
     ]), trigger=display_interval)
+    trainer.extend(extensions.PlotReport(
+        ['gen/loss', 'dis/loss'], x_key='iteration', trigger=display_interval))
     trainer.extend(extensions.ProgressBar(update_interval=10))
     trainer.extend(
         out_generated_image(
@@ -102,6 +108,11 @@ def main():
 
     # Run the training
     trainer.run()
+
+    # Save generator model
+    if args.gpu >= 0:
+        gen.to_cpu()
+    chainer.serializers.save_npz(os.path.join(args.out, 'gen.npz'), gen)
 
 
 if __name__ == '__main__':
