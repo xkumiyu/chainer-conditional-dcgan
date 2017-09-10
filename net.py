@@ -15,7 +15,8 @@ def add_noise(h, sigma=0.2):
 
 
 def to_onehot(labels, class_num, xp=np):
-    return xp.asarray([np.eye(class_num)[label] for label in labels], dtype=xp.float32)
+    return xp.asarray([np.eye(class_num)[label] for label in labels], dtype=xp.float32)\
+        .reshape(-1, class_num, 1, 1)
 
 
 class Generator(chainer.Chain):
@@ -45,7 +46,7 @@ class Generator(chainer.Chain):
 
     def __call__(self, z, t):
         xp = cuda.get_array_module(z.data)
-        t = to_onehot(t, self.class_num, xp).reshape(-1, self.class_num, 1, 1)
+        t = to_onehot(t, self.class_num, xp)
 
         h = F.reshape(F.relu(self.bn0(self.l0(F.concat((z, t), axis=1)))),
                       (len(z), self.ch, self.bottom_width, self.bottom_width))
@@ -82,7 +83,7 @@ class Discriminator(chainer.Chain):
     def __call__(self, x, t):
         batchsize = len(x)
         xp = cuda.get_array_module(x.data)
-        t = to_onehot(t, self.class_num, xp).reshape(-1, self.class_num, 1, 1)
+        t = to_onehot(t, self.class_num, xp)
         t = t * xp.ones((batchsize, self.class_num, 32, 32), dtype=xp.float32)
 
         h = F.concat((add_noise(x), t), axis=1)
