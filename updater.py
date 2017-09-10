@@ -28,17 +28,27 @@ class DCGANUpdater(chainer.training.StandardUpdater):
         dis_optimizer = self.get_optimizer('dis')
 
         batch = self.get_iterator('main').next()
-        x_real = Variable(self.converter(batch, self.device)) / 255.
+        batchsize = len(batch)
+        images = [batch[i][0] for i in range(batchsize)]
+        labels = [batch[i][1] for i in range(batchsize)]
+
+        image_size = (32, 32)
+        x_real = F.resize_images(
+            Variable(self.converter(images, self.device)) / 255., image_size)
         xp = chainer.cuda.get_array_module(x_real.data)
 
         gen, dis = self.gen, self.dis
-        batchsize = len(batch)
 
-        y_real = dis(x_real)
+        # print('x_real', x_real.shape)
+        y_real = dis(x_real, labels)
+        # print('y_real', y_real.shape)
 
         z = Variable(xp.asarray(gen.make_hidden(batchsize)))
-        x_fake = gen(z)
-        y_fake = dis(x_fake)
+        # print('z', z.shape)
+        x_fake = gen(z, labels)
+        # print('x_fake', x_fake.shape)
+        y_fake = dis(x_fake, labels)
+        # print('y_fake', y_fake.shape)
 
         dis_optimizer.update(self.loss_dis, dis, y_fake, y_real)
         gen_optimizer.update(self.loss_gen, gen, y_fake)

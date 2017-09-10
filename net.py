@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 
 import chainer
 from chainer import cuda
@@ -14,18 +14,22 @@ def add_noise(h, sigma=0.2):
         return h
 
 
+def to_onehot(labels, class_num, xp=np):
+    return xp.asarray([np.eye(class_num)[label] for label in labels], dtype=xp.float32)
+
+
 class Generator(chainer.Chain):
 
-    def __init__(self, n_hidden, bottom_width=4, ch=512, wscale=0.02):
+    def __init__(self, n_hidden, bottom_width=4, ch=512, wscale=0.02, class_num=10):
         super(Generator, self).__init__()
         self.n_hidden = n_hidden
         self.ch = ch
         self.bottom_width = bottom_width
+        self.class_num = class_num
 
         with self.init_scope():
             w = chainer.initializers.Normal(wscale)
-            self.l0 = L.Linear(self.n_hidden, bottom_width * bottom_width * ch,
-                               initialW=w)
+            self.l0 = L.Linear(None, bottom_width * bottom_width * ch, initialW=w)
             self.dc1 = L.Deconvolution2D(ch, ch // 2, 4, 2, 1, initialW=w)
             self.dc2 = L.Deconvolution2D(ch // 2, ch // 4, 4, 2, 1, initialW=w)
             self.dc3 = L.Deconvolution2D(ch // 4, ch // 8, 4, 2, 1, initialW=w)
@@ -36,11 +40,14 @@ class Generator(chainer.Chain):
             self.bn3 = L.BatchNormalization(ch // 8)
 
     def make_hidden(self, batchsize):
-        return numpy.random.uniform(-1, 1, (batchsize, self.n_hidden, 1, 1))\
-            .astype(numpy.float32)
+        return np.random.uniform(-1, 1, (batchsize, self.n_hidden, 1, 1))\
+            .astype(np.float32)
 
-    def __call__(self, z):
-        h = F.reshape(F.relu(self.bn0(self.l0(z))),
+    def __call__(self, z, t):
+        xp = cuda.get_array_module(z.data)
+        t = to_onehot(t, self.class_num, xp).reshape(-1, self.class_num, 1, 1)
+
+        h = F.reshape(F.relu(self.bn0(self.l0(F.concat((z, t), axis=1)))),
                       (len(z), self.ch, self.bottom_width, self.bottom_width))
         h = F.relu(self.bn1(self.dc1(h)))
         h = F.relu(self.bn2(self.dc2(h)))
@@ -51,18 +58,20 @@ class Generator(chainer.Chain):
 
 class Discriminator(chainer.Chain):
 
-    def __init__(self, bottom_width=4, ch=512, wscale=0.02):
+    def __init__(self, bottom_width=4, ch=512, wscale=0.02, class_num=10):
         w = chainer.initializers.Normal(wscale)
         super(Discriminator, self).__init__()
+        self.class_num = class_num
+
         with self.init_scope():
-            self.c0_0 = L.Convolution2D(3, ch // 8, 3, 1, 1, initialW=w)
+            self.c0_0 = L.Convolution2D(None, ch // 8, 3, 1, 1, initialW=w)
             self.c0_1 = L.Convolution2D(ch // 8, ch // 4, 4, 2, 1, initialW=w)
             self.c1_0 = L.Convolution2D(ch // 4, ch // 4, 3, 1, 1, initialW=w)
             self.c1_1 = L.Convolution2D(ch // 4, ch // 2, 4, 2, 1, initialW=w)
             self.c2_0 = L.Convolution2D(ch // 2, ch // 2, 3, 1, 1, initialW=w)
             self.c2_1 = L.Convolution2D(ch // 2, ch // 1, 4, 2, 1, initialW=w)
             self.c3_0 = L.Convolution2D(ch // 1, ch // 1, 3, 1, 1, initialW=w)
-            self.l4 = L.Linear(bottom_width * bottom_width * ch, 1, initialW=w)
+            self.l4 = L.Linear(None, 1, initialW=w)
             self.bn0_1 = L.BatchNormalization(ch // 4, use_gamma=False)
             self.bn1_0 = L.BatchNormalization(ch // 4, use_gamma=False)
             self.bn1_1 = L.BatchNormalization(ch // 2, use_gamma=False)
@@ -70,8 +79,13 @@ class Discriminator(chainer.Chain):
             self.bn2_1 = L.BatchNormalization(ch // 1, use_gamma=False)
             self.bn3_0 = L.BatchNormalization(ch // 1, use_gamma=False)
 
-    def __call__(self, x):
-        h = add_noise(x)
+    def __call__(self, x, t):
+        batchsize = len(x)
+        xp = cuda.get_array_module(x.data)
+        t = to_onehot(t, self.class_num, xp).reshape(-1, self.class_num, 1, 1)
+        t = t * xp.ones((batchsize, self.class_num, 32, 32), dtype=xp.float32)
+
+        h = F.concat((add_noise(x), t), axis=1)
         h = F.leaky_relu(add_noise(self.c0_0(h)))
         h = F.leaky_relu(add_noise(self.bn0_1(self.c0_1(h))))
         h = F.leaky_relu(add_noise(self.bn1_0(self.c1_0(h))))

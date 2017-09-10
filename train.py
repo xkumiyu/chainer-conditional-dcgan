@@ -19,8 +19,10 @@ def main():
                         help='Number of sweeps over the dataset to train')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU ID (negative value indicates CPU)')
-    parser.add_argument('--dataset', '-i', default='',
-                        help='Directory of image files.  Default is cifar-10.')
+    parser.add_argument('--dataset', '-i', default='filelist.txt',
+                        help='List file of image files.')
+    parser.add_argument('--dataset_root', default='.',
+                        help='Root directory to retrieve images from.')
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
     parser.add_argument('--resume', '-r', default='',
@@ -39,7 +41,6 @@ def main():
     print('# Minibatch-size: {}'.format(args.batchsize))
     print('# n_hidden: {}'.format(args.n_hidden))
     print('# epoch: {}'.format(args.epoch))
-    print('')
 
     # Set up a neural network to train
     gen = Generator(n_hidden=args.n_hidden)
@@ -60,17 +61,11 @@ def main():
     opt_gen = make_optimizer(gen)
     opt_dis = make_optimizer(dis)
 
-    if args.dataset == '':
-        # Load the CIFAR10 dataset if args.dataset is not specified
-        train, _ = chainer.datasets.get_cifar10(withlabel=False, scale=255.)
-    else:
-        all_files = os.listdir(args.dataset)
-        image_files = [f for f in all_files if ('png' in f or 'jpg' in f)]
-        print('{} contains {} image files'
-              .format(args.dataset, len(image_files)))
-        train = chainer.datasets\
-            .ImageDataset(paths=image_files, root=args.dataset)
-
+    # Set up dataset
+    train = chainer.datasets.LabeledImageDataset(args.dataset, root=args.dataset_root)
+    print('# data-size: {}'.format(len(train)))
+    print('# data-shape: {}'.format(train[0][0].shape))
+    print('')
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
 
     # Set up a trainer

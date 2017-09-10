@@ -131,3 +131,7 @@ ENV/
 .mypy_cache/
 
 
+filelist.txt
+result/
+tmp/
+debug.py
