@@ -1,10 +1,10 @@
-import os
 import argparse
+import os
 
-import numpy as np
-from PIL import Image
 import chainer
 from chainer import Variable
+import numpy as np
+from PIL import Image
 
 from net import Generator
 
